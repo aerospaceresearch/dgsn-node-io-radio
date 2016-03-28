@@ -1,0 +1,293 @@
+import os, sys, platform
+
+#import multiprocessing
+from multiprocessing import Process, Lock
+
+from rtlsdr import RtlSdr
+from rtlsdr import librtlsdr
+
+from subprocess import Popen, PIPE
+
+import numpy as np
+
+import time
+import datetime
+
+import hashlib
+from uuid import getnode as get_mac
+
+gain_step = 2
+gain_start = 9
+signal_threshold = 0.10
+
+def calibrating_gain_with_windows(sdr, samplerate):
+
+    signal_level = 0.0
+    gain = gain_start
+
+    while signal_level < signal_threshold and gain < 48.0:
+        gain = gain+gain_step
+        sdr.gain = gain
+        #print('hello world', sdr.gain
+        samples = (sdr.read_samples(2*samplerate))
+        signal_level = np.mean(np.abs(samples))
+        print(sdr.gain, signal_level, np.min(np.abs(samples)), np.max(np.abs(samples)))
+
+    if sdr.gain >= 49.0:
+        print("activating autogain")
+        gain = 'auto'
+        sdr.gain = gain
+        #print('hello world', sdr.gain
+        samples = (sdr.read_samples(2*samplerate))
+        signal_level = np.mean(np.abs(samples))
+        print(sdr.gain, signal_level, np.min(np.abs(samples)), np.max(np.abs(samples)))
+    else:
+        print("found gain")
+        gain = gain - gain_step
+        sdr.gain = gain
+        samples = (sdr.read_samples(2*samplerate))
+        signal_level = np.mean(np.abs(samples))
+        print(sdr.gain, signal_level, np.min(np.abs(samples)), np.max(np.abs(samples)))
+
+    return gain
+
+def calibrating_gain_with_linux(device_number, center_frequency, samplerate):
+
+    signal_level = 0.0
+    gain = gain_start
+
+    read_samples = (2*samplerate)
+    rtl_sdr_exe= "rtl_sdr"
+
+    while signal_level < signal_threshold*127.0 and gain < 48.0:
+        gain = gain+gain_step
+
+        sdr = Popen([rtl_sdr_exe, "-d", str(device_number), "-f", str(center_frequency), "-s", str(samplerate),
+                     "-g", str(gain), "-p", str(freq_correction), "-"],
+            stdout=PIPE, stderr=None)
+
+        ret = None
+        print("test")
+        stream_data = sdr.stdout.read(read_samples)
+        print("test1")
+        samples = [int(x) - 127 for x in stream_data]
+        print("test2")
+        signal_level = np.mean(np.abs(samples))
+        sdr.kill()
+        print(gain, signal_level/127.0, np.min(np.abs(samples)), np.max(np.abs(samples)))
+
+
+    if gain >= 49.0:
+        print("activating autogain")
+        gain = 0
+        sdr = Popen([rtl_sdr_exe, "-d", str(device_number), "-f", str(center_frequency), "-s", str(samplerate),
+                     "-g", "0", "-p", str(freq_correction), "-"],
+            stdout=PIPE, stderr=None)
+
+        ret = None
+        stream_data = sdr.stdout.read(read_samples)
+        samples = [int(x) - 127 for x in stream_data]
+        signal_level = np.mean(np.abs(samples))
+        sdr.kill()
+        print(gain, signal_level/127.00, np.min(np.abs(samples)), np.max(np.abs(samples)))
+    else:
+        print("found gain")
+        gain = gain - gain_step
+        sdr = Popen([rtl_sdr_exe, "-d", str(device_number), "-f", str(center_frequency), "-s", str(samplerate),
+                     "-g", str(gain), "-p", str(freq_correction), "-"],
+            stdout=PIPE, stderr=None)
+
+        ret = None
+        stream_data = sdr.stdout.read(read_samples)
+        samples = [int(x) - 127 for x in stream_data]
+        signal_level = np.mean(np.abs(samples))
+        sdr.kill()
+        print(gain, signal_level/127.0, np.min(np.abs(samples)), np.max(np.abs(samples)))
+    print("ready")
+    return gain
+
+def do_sha224(x):
+    hashed = hashlib.sha224(x)
+    hashed = hashed.hexdigest()
+    return hashed
+
+def storing_stream(l, device_number, folder, subfolders, center_frequency, samplerate, gain, nsamples, freq_correction,
+                   user_hash):
+    l.acquire()
+    print(device_number, center_frequency, samplerate, gain, nsamples, freq_correction)
+    # configure device
+    sdr = RtlSdr(device_index=device_number)
+    sdr.center_freq = center_frequency
+    sdr.sample_rate = samplerate
+    if freq_correction != 0:
+        sdr.freq_correction = freq_correction   # PPM
+    sdr.gain = gain
+    print('hello world')
+    timestamp = time.mktime(time.gmtime())
+    samples = sdr.read_bytes(nsamples*2)
+    sdr.close()
+    l.release()
+
+    print("save")
+    filename = folder+"/"+subfolders[0]+"/tmp_"+user_hash+"_"+str(center_frequency)+"_"+str(timestamp).split(".")[0]
+    #np.savez_compressed(filename, samples) # storing by numpy and copressing it
+    np.save(filename, samples)
+    os.rename(filename+".npy", folder+"/"+subfolders[0]+"/"+user_hash+"_"+str(center_frequency)+"_"+
+              str(timestamp).split(".")[0]+".npy")
+
+    del samples
+
+    return filename
+
+def storing_stream_with_linux(stream_data, device_number, folder, subfolders, center_frequency, samplerate,
+                              gain, nsamples, freq_correction, user_hash):
+    timestamp = time.mktime(time.gmtime())
+
+    test = np.fromstring(stream_data, dtype=np.uint8)
+    samples_hash = do_sha224(test)
+
+    print("save")
+    filename = folder+"/"+subfolders[0]+"/tmp_"+user_hash+"_"+str(center_frequency)+"_"+str(timestamp).split(".")[0]
+    #np.savez_compressed(filename, samples) # storing by numpy and copressing it
+    np.save(filename, test)
+    os.rename(filename+".npy", folder+"/"+subfolders[0]+"/"+user_hash+"_"+str(center_frequency)+"_"+
+              str(timestamp).split(".")[0]+".npy")
+
+    del test
+
+    return filename
+
+
+def get_groundstationid():
+    if os.path.exists("groundstationid.npy"):
+        id = str(np.load("groundstationid.npy"))
+    else:
+        id = do_sha224(str(get_mac()).encode("utf-8")) # added .encode("utf-8") for python 3.4.3
+        np.save("groundstationid.npy", id)
+
+    print("your groundstation id is", id)
+    return id
+
+    
+if __name__ == '__main__':
+
+    print("you are using", platform.system(), platform.release(), os.name)
+
+    # creating the central shared dgsn-node-data for all programs on the nodes
+    #######################################
+    pathname = os.path.dirname(sys.argv[0])
+    pathname_save = ""
+    for i in range(len(pathname.split("/"))-1):
+        pathname_save = pathname_save + pathname.split("/")[i] + "/"
+    pathname_save = pathname_save + "dgsn-node-data"
+
+    
+    # creating the dump folder for files and the needed data folders
+    #######################################
+    if not os.path.exists(pathname_save):
+        os.makedirs(pathname_save)
+
+    folder = pathname_save+"/rec"
+    subfolders = ["iq", "sdr", "gapped", "coded"]
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+
+    if os.path.exists(folder):
+        for i in range(len(subfolders)):
+            if not os.path.exists(folder+"/"+subfolders[i]):
+                os.makedirs(folder+"/"+subfolders[i])
+
+
+    # setting the rtlsdr before the gain finding
+    #####################################
+    device_number = 0
+    center_frequency = 178000000
+    samplerate = 2048000
+    nsamples = 20*samplerate
+    gain = 1
+    freq_correction = 1
+    user_hash = get_groundstationid()
+
+    dt = datetime.datetime(2016, 3, 15, 13, 10)
+    recording_start = time.mktime(dt.timetuple())
+    dt = datetime.datetime(2016, 3, 31, 13, 13)
+    recording_stop = time.mktime(dt.timetuple())
+
+    print("starting the fun...")
+
+    if platform.system() == "Windows":
+        print("detecting a windows")
+        ##############
+        device_count = librtlsdr.rtlsdr_get_device_count()
+        print("number of devices:", device_count)
+
+        if device_count > 0:
+            lock = Lock()
+            jobs = []
+            sdr = RtlSdr(device_index=device_number)
+            sdr.center_freq = center_frequency
+            sdr.sample_rate = samplerate
+            #sdr.freq_correction = 1   # PPM
+
+            # calibrating the dongle
+            gain = calibrating_gain_with_windows(sdr, samplerate)
+            sdr.gain = gain
+            #sdr.gain = 30
+            sdr.close()
+
+            while time.mktime(time.gmtime()) <= recording_start:
+                # waiting for the time to be right :)
+                time.sleep(10)
+                print(recording_start - time.mktime(time.gmtime()))
+
+            utctime = time.mktime(time.gmtime())
+            if utctime >= recording_start and utctime <= recording_stop:
+                for recs in range(2):
+                    p = Process(target=storing_stream, args=(lock, device_number, folder, subfolders, center_frequency,
+                                                             samplerate, gain, nsamples, freq_correction, user_hash))
+                    jobs.append(p)
+                    p.start()
+                print("end")
+
+                while time.mktime(time.gmtime()) <= recording_stop:
+                    time.sleep(2)
+                    for n, p in enumerate(jobs):
+                        if not p.is_alive() and time.mktime(time.gmtime()) <= recording_stop:
+                            jobs.pop(n)
+                            recs += 1
+                            p = Process(target=storing_stream, args=(lock, device_number, folder, subfolders,
+                                                                     center_frequency, samplerate, gain, nsamples,
+                                                                     freq_correction, user_hash))
+                            jobs.append(p)
+                            p.start()
+                            print("rec number", recs, 'added')
+
+            for job in jobs:
+                job.join()
+
+
+    elif platform.system() == "Linux" or platform.system() == "Linux2":
+        print("detecting a linux")
+
+        #getNumber_of_rtlsdrs_with_linux()
+
+        gain = calibrating_gain_with_linux(device_number, center_frequency, samplerate)
+        print(gain)
+        
+        while time.mktime(time.gmtime()) <= recording_start:
+                # waiting for the time to be right :)
+                time.sleep(10)
+                print(recording_start - time.mktime(time.gmtime()))
+
+        rtl_sdr_exe= "rtl_sdr"
+        sdr = Popen([rtl_sdr_exe, "-d", str(device_number), "-f", str(center_frequency), "-s", str(samplerate),
+                     "-g", str(gain), "-p", str(freq_correction), "-"],
+            stdout=PIPE, stderr=None)
+
+        ret = None
+        while time.mktime(time.gmtime()) <= recording_stop:
+            stream_data = sdr.stdout.read(nsamples*2)
+            storing_stream_with_linux(stream_data, device_number, folder, subfolders, center_frequency, samplerate,
+                                      gain, nsamples, freq_correction, user_hash)
+
+        sdr.kill()
