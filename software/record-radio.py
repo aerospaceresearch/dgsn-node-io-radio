@@ -1,6 +1,7 @@
+#!/usr/bin/env python3
 version = 1457968166
 
-import os, sys, platform
+import os, sys, platform, requests
 
 #import multiprocessing
 from multiprocessing import Process, Lock
@@ -12,11 +13,12 @@ from subprocess import Popen, PIPE
 
 import numpy as np
 
-import time
-import datetime
+import time, datetime
 
 import hashlib
 from uuid import getnode as get_mac
+
+import json
 
 gain_step = 2
 gain_start = 9
@@ -170,7 +172,7 @@ def get_groundstationid():
     print("your groundstation id is", id)
     return id
 
-    
+
 if __name__ == '__main__':
 
     print("you are using", platform.system(), platform.release(), os.name)
@@ -178,12 +180,13 @@ if __name__ == '__main__':
     # creating the central shared dgsn-node-data for all programs on the nodes
     #######################################
     pathname = os.path.dirname(sys.argv[0])
-    pathname_save = ""
+    pathname_all = ""
     for i in range(len(pathname.split("/"))-1):
-        pathname_save = pathname_save + pathname.split("/")[i] + "/"
-    pathname_save = pathname_save + "dgsn-node-data"
+        pathname_all = pathname_all + pathname.split("/")[i] + "/"
+    pathname_save = pathname_all + "dgsn-node-data"
+    pathname_config = pathname_all + "dgsn-hub-ops"
 
-    
+
     # creating the dump folder for files and the needed data folders
     #######################################
     if not os.path.exists(pathname_save):
@@ -199,22 +202,56 @@ if __name__ == '__main__':
             if not os.path.exists(folder+"/"+subfolders[i]):
                 os.makedirs(folder+"/"+subfolders[i])
 
+    if not os.path.exists(pathname_config):
+        os.makedirs(pathname_config)
+
+    pathname_config = pathname_config + "/io-radio"
+
+    if not os.path.exists(pathname_config):
+        os.makedirs(pathname_config)
+
 
     # setting the rtlsdr before the gain finding
     #####################################
-    device_number = 0
-    center_frequency = 178000000
-    samplerate = 2048000
-    nsamples = 20*samplerate
-    gain = 1
-    freq_correction = 1
+
+    # getting one file to each node very simple via github, or via a local file copy
+    #todo: if local file doesn't exist, check
+    try:
+        r = requests.get('https://raw.githubusercontent.com/aerospaceresearch/dgsn-hub-ops/master/io-radio/'
+                         'record-config.json')
+        data_github = r.json()
+    except requests.exceptions.RequestException as e:    # This is the correct syntax
+        print(e)
+
+    with open(pathname_config+'/record-config.json') as data_file:
+        data_infile = json.load(data_file)
+        #print(data["recording_start"]["y"])
+
+    if data_github["created"] > data_infile["created"]:
+        print("using github config file")
+        data = data_github
+    else:
+        print("using local config file")
+        data = data_infile
+
+    device_number = data["device_number"]
+    center_frequency = data["center_frequency"]
+    samplerate = data["samplerate"]
+    nsamples = data["secondsofrecording"]*samplerate
+    gain = data["gain"]
+    freq_correction = data["freq_correction"]
     user_hash = get_groundstationid()
 
-    dt = datetime.datetime(2016, 3, 15, 13, 10)
+    dt = datetime.datetime(data["recording_start"]["y"], data["recording_start"]["m"], data["recording_start"]["d"],
+                           data["recording_start"]["hh"], data["recording_start"]["mm"], data["recording_start"]["ss"])
     recording_start = time.mktime(dt.timetuple())
-    dt = datetime.datetime(2016, 3, 31, 13, 13)
+
+    dt = datetime.datetime(data["recording_end"]["y"], data["recording_end"]["m"], data["recording_end"]["d"],
+                           data["recording_end"]["hh"], data["recording_end"]["mm"], data["recording_end"]["ss"])
     recording_stop = time.mktime(dt.timetuple())
 
+
+    ##################################
     print("starting the fun...")
 
     if platform.system() == "Windows":
