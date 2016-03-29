@@ -172,7 +172,7 @@ def get_groundstationid():
     print("your groundstation id is", id)
     return id
 
-def loading_config_file():
+def loading_config_file(pathname_config):
     try:
         r = requests.get('https://raw.githubusercontent.com/aerospaceresearch/dgsn-hub-ops/master/io-radio/'
                          'record-config.json')
@@ -272,12 +272,25 @@ if __name__ == '__main__':
     #####################################
 
     # getting one file to each node very simple via github, or via a local file copy
-    data = loading_config_file()
+    data = loading_config_file(pathname_config)
+
+    # getting the specific settings for the node itself. perhaps it cannot be as fast as others
+    with open(pathname+'/node-config.json') as data_file:
+        data_node = json.load(data_file)
 
     device_number = data["device_number"]
     center_frequency = data["center_frequency"]
     samplerate = data["samplerate"]
-    nsamples = data["secondsofrecording"]*samplerate
+
+    # this will be necessary in case a full fledged pc is a node or in case a micro pc is used with less RAM
+    if data["secondsofrecording"] <= data_node["secondsofrecording_maximum"]:
+        secondsofrecording = data["secondsofrecording"]
+    else:
+        secondsofrecording = data_node["secondsofrecording_maximum"]
+    print("record seconds commanded", data["secondsofrecording"],"record seconds maximum",
+          data_node["secondsofrecording_maximum"], "and it is",secondsofrecording)
+
+    nsamples = secondsofrecording*samplerate
     gain = data["gain"]
     freq_correction = data["freq_correction"]
     user_hash = get_groundstationid()
