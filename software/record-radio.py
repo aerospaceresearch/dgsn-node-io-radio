@@ -172,6 +172,39 @@ def get_groundstationid():
     print("your groundstation id is", id)
     return id
 
+def loading_config_file():
+    try:
+        r = requests.get('https://raw.githubusercontent.com/aerospaceresearch/dgsn-hub-ops/master/io-radio/'
+                         'record-config.json')
+        print("downloading record-config.json from github")
+        f = open(pathname_config+'/record-github-config.json', 'w')
+        json.dump(r.json(), f)
+        f.close
+
+    except requests.exceptions.RequestException as e:
+        print(e)
+        if os.path.exists(pathname_config+'/record-github-config.json') == False:
+            print("creating empty record-github-config.json")
+            f = open(pathname_config+'/record-github-config.json', 'w')
+            json.dump({"version": 1457968166, "created": 0}, f)
+    f.close() # todo: it works to close here, but it's not good. fixing later
+
+    with open(pathname_config+'/record-config.json') as data_file:
+        data_infile = json.load(data_file)
+
+    with open(pathname_config+'/record-github-config.json') as data_file:
+        data_github = json.load(data_file)
+
+    print("created on Github:",data_github["created"],"and on local file:", data_infile["created"])
+    if data_github["created"] >= data_infile["created"]:
+        print("using github config file")
+        data = data_github
+    else:
+        print("using local config file")
+        data = data_infile
+
+    return data
+
 
 if __name__ == '__main__':
 
@@ -215,24 +248,7 @@ if __name__ == '__main__':
     #####################################
 
     # getting one file to each node very simple via github, or via a local file copy
-    #todo: if local file doesn't exist, check
-    try:
-        r = requests.get('https://raw.githubusercontent.com/aerospaceresearch/dgsn-hub-ops/master/io-radio/'
-                         'record-config.json')
-        data_github = r.json()
-    except requests.exceptions.RequestException as e:    # This is the correct syntax
-        print(e)
-
-    with open(pathname_config+'/record-config.json') as data_file:
-        data_infile = json.load(data_file)
-        #print(data["recording_start"]["y"])
-
-    if data_github["created"] > data_infile["created"]:
-        print("using github config file")
-        data = data_github
-    else:
-        print("using local config file")
-        data = data_infile
+    data = loading_config_file()
 
     device_number = data["device_number"]
     center_frequency = data["center_frequency"]
@@ -312,7 +328,7 @@ if __name__ == '__main__':
 
         gain = calibrating_gain_with_linux(device_number, center_frequency, samplerate)
         print(gain)
-        
+
         while time.mktime(time.gmtime()) <= recording_start:
                 # waiting for the time to be right :)
                 time.sleep(10)
