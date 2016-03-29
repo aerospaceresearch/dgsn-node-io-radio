@@ -179,7 +179,7 @@ def loading_config_file():
         print("downloading record-config.json from github")
         f = open(pathname_config+'/record-github-config.json', 'w')
         json.dump(r.json(), f)
-        f.close
+        f.close()
 
     except requests.exceptions.RequestException as e:
         print(e)
@@ -187,13 +187,18 @@ def loading_config_file():
             print("creating empty record-github-config.json")
             f = open(pathname_config+'/record-github-config.json', 'w')
             json.dump({"version": 1457968166, "created": 0}, f)
-    f.close() # todo: it works to close here, but it's not good. fixing later
+            f.close()
+
+    with open(pathname_config+'/record-github-config.json') as data_file:
+        data_github = json.load(data_file)
+
+
+    if os.path.exists(pathname_config+'/record-config.json') == False:
+        create_config_file_template(pathname_config+'/record-config.json')
 
     with open(pathname_config+'/record-config.json') as data_file:
         data_infile = json.load(data_file)
 
-    with open(pathname_config+'/record-github-config.json') as data_file:
-        data_github = json.load(data_file)
 
     print("created on Github:",data_github["created"],"and on local file:", data_infile["created"])
     if data_github["created"] >= data_infile["created"]:
@@ -204,6 +209,25 @@ def loading_config_file():
         data = data_infile
 
     return data
+
+def create_config_file_template(file):
+    # todo: always having the curent template in here!
+
+    f = open(file, "w")
+    json.dump({
+                "version":1457968166,
+                "created":1457968166,
+                "device_number":0,
+                "center_frequency":178000000,
+                "samplerate":2048000,
+                "secondsofrecording":20,
+                "gain":20,
+                "freq_correction":1,
+                "recording_start":{"y":2016,"m":3,"d":15,"hh":0,"mm":0,"ss":0},
+                "recording_end":{"y":2016,"m":3,"d":31,"hh":0,"mm":0,"ss":0},
+                "comment":"prototpye status"
+                }, f, indent=4)
+    f.close()
 
 
 if __name__ == '__main__':
@@ -274,7 +298,7 @@ if __name__ == '__main__':
         print("detecting a windows")
         ##############
         device_count = librtlsdr.rtlsdr_get_device_count()
-        print("number of devices:", device_count)
+        print("number of rtl-sdr devices:", device_count)
 
         if device_count > 0:
             lock = Lock()
