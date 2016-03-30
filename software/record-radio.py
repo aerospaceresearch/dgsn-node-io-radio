@@ -30,7 +30,7 @@ def calibrating_gain_with_windows(sdr, samplerate):
     signal_level = 0.0
     gain = gain_start
 
-    while signal_level < signal_threshold and gain < gain_end:
+    while signal_level < signal_threshold and gain <= gain_end:
         gain = gain+gain_step
         sdr.gain = gain
         #print('hello world', sdr.gain
@@ -64,7 +64,7 @@ def calibrating_gain_with_linux(device_number, center_frequency, samplerate):
     read_samples = (2*samplerate)
     rtl_sdr_exe= "rtl_sdr"
 
-    while signal_level < signal_threshold*127.0 and gain < gain_end:
+    while signal_level < signal_threshold*127.0 and gain <= gain_end:
         gain = gain+gain_step
 
         sdr = Popen([rtl_sdr_exe, "-d", str(device_number), "-f", str(center_frequency), "-s", str(samplerate),
@@ -218,14 +218,14 @@ def create_config_file_template(file):
     json.dump({
                 "comment":"prototpye status",
                 "version":1457968166,
-                "created":1457968166,
+                "created":1457968167,
                 "device_number":0,
-                "center_frequency":178000000,
+                "center_frequency":104300000,
                 "samplerate":2048000,
                 "secondsofrecording":40,
                 "freq_correction":1,
-                "recording_start":{"y":2016,"m":3,"d":15,"hh":0,"mm":0,"ss":0},
-                "recording_end":{"y":2016,"m":3,"d":31,"hh":0,"mm":0,"ss":0},
+                "recording_start":{"y":2016,"m":3,"d":31,"hh":0,"mm":0,"ss":0},
+                "recording_end":{"y":2016,"m":3,"d":31,"hh":1,"mm":0,"ss":0},
                 "gain_start":1.0,
                 "gain_end":48.0,
                 "gain_step":1.0,
@@ -343,7 +343,9 @@ if __name__ == '__main__':
             while time.mktime(time.gmtime()) <= recording_start:
                 # waiting for the time to be right :)
                 time.sleep(10)
-                print(recording_start - time.mktime(time.gmtime()))
+                print("still", recording_start - time.mktime(time.gmtime()), "to wait")
+
+            print("recording starts now...")
 
             utctime = time.mktime(time.gmtime())
             if utctime >= recording_start and utctime <= recording_stop:
@@ -384,9 +386,11 @@ if __name__ == '__main__':
         print("used gain", gain)
 
         while time.mktime(time.gmtime()) <= recording_start:
-                # waiting for the time to be right :)
-                time.sleep(10)
-                print(recording_start - time.mktime(time.gmtime()))
+            # waiting for the time to be right :)
+            time.sleep(10)
+            print("still", recording_start - time.mktime(time.gmtime()), "to wait")
+
+        print("recording starts now...")
 
         rtl_sdr_exe= "rtl_sdr"
         sdr = Popen([rtl_sdr_exe, "-d", str(device_number), "-f", str(center_frequency), "-s", str(samplerate),
