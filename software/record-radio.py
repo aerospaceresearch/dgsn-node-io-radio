@@ -20,8 +20,9 @@ from uuid import getnode as get_mac
 
 import json
 
-gain_step = 2
-gain_start = 9
+gain_step = 1.0
+gain_start = 1.0
+gain_end = 48.0
 signal_threshold = 0.10
 
 def calibrating_gain_with_windows(sdr, samplerate):
@@ -29,7 +30,7 @@ def calibrating_gain_with_windows(sdr, samplerate):
     signal_level = 0.0
     gain = gain_start
 
-    while signal_level < signal_threshold and gain < 48.0:
+    while signal_level < signal_threshold and gain < gain_end:
         gain = gain+gain_step
         sdr.gain = gain
         #print('hello world', sdr.gain
@@ -63,7 +64,7 @@ def calibrating_gain_with_linux(device_number, center_frequency, samplerate):
     read_samples = (2*samplerate)
     rtl_sdr_exe= "rtl_sdr"
 
-    while signal_level < signal_threshold*127.0 and gain < 48.0:
+    while signal_level < signal_threshold*127.0 and gain < gain_end:
         gain = gain+gain_step
 
         sdr = Popen([rtl_sdr_exe, "-d", str(device_number), "-f", str(center_frequency), "-s", str(samplerate),
@@ -215,17 +216,20 @@ def create_config_file_template(file):
 
     f = open(file, "w")
     json.dump({
+                "comment":"prototpye status",
                 "version":1457968166,
                 "created":1457968166,
                 "device_number":0,
                 "center_frequency":178000000,
                 "samplerate":2048000,
-                "secondsofrecording":20,
-                "gain":20,
+                "secondsofrecording":40,
                 "freq_correction":1,
                 "recording_start":{"y":2016,"m":3,"d":15,"hh":0,"mm":0,"ss":0},
                 "recording_end":{"y":2016,"m":3,"d":31,"hh":0,"mm":0,"ss":0},
-                "comment":"prototpye status"
+                "gain_start":1.0,
+                "gain_end":48.0,
+                "gain_step":1.0,
+                "signal_threshold":0.12
                 }, f, indent=4)
     f.close()
 
@@ -291,7 +295,6 @@ if __name__ == '__main__':
           data_node["secondsofrecording_maximum"], "and it is",secondsofrecording)
 
     nsamples = secondsofrecording*samplerate
-    gain = data["gain"]
     freq_correction = data["freq_correction"]
     user_hash = get_groundstationid()
 
@@ -303,6 +306,11 @@ if __name__ == '__main__':
                            data["recording_end"]["hh"], data["recording_end"]["mm"], data["recording_end"]["ss"])
     recording_stop = time.mktime(dt.timetuple())
 
+    # getting the data for calibration
+    gain_start = data["gain_start"]
+    gain_end = data["gain_end"]
+    gain_step = data["gain_step"]
+    signal_threshold = data["signal_threshold"]
 
     ##################################
     print("starting the fun...")
@@ -322,9 +330,14 @@ if __name__ == '__main__':
             #sdr.freq_correction = 1   # PPM
 
             # calibrating the dongle
-            gain = calibrating_gain_with_windows(sdr, samplerate)
+            gain = 0
+            if gain_start >= gain_end:
+                gain = gain_end
+            else:
+                gain = calibrating_gain_with_windows(sdr, samplerate)
+
+            print("used gain", gain)
             sdr.gain = gain
-            #sdr.gain = 30
             sdr.close()
 
             while time.mktime(time.gmtime()) <= recording_start:
@@ -363,8 +376,12 @@ if __name__ == '__main__':
 
         #getNumber_of_rtlsdrs_with_linux()
 
-        gain = calibrating_gain_with_linux(device_number, center_frequency, samplerate)
-        print(gain)
+        gain = 0
+        if gain_start >= gain_end:
+            gain = gain_end
+        else:
+            gain = calibrating_gain_with_linux(device_number, center_frequency, samplerate)
+        print("used gain", gain)
 
         while time.mktime(time.gmtime()) <= recording_start:
                 # waiting for the time to be right :)
