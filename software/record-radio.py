@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 version = 1457968166
 
-import os, sys, platform, requests
+import os
+import sys
+import platform
+import requests
 
-#import multiprocessing
+# import multiprocessing
 from multiprocessing import Process, Lock
 
-from rtlsdr import RtlSdr
-from rtlsdr import librtlsdr
+from rtlsdr import RtlSdr, librtlsdr
 
 from subprocess import Popen, PIPE
 
 import numpy as np
 
-import time, datetime
+import time
+import datetime
 
 import hashlib
 from uuid import getnode as get_mac
@@ -25,6 +28,7 @@ gain_start = 1.0
 gain_end = 48.0
 signal_threshold = 0.10
 
+
 def calibrating_gain_with_windows(sdr, samplerate):
 
     signal_level = 0.0
@@ -33,7 +37,7 @@ def calibrating_gain_with_windows(sdr, samplerate):
     while signal_level < signal_threshold and gain <= gain_end:
         gain = gain+gain_step
         sdr.gain = gain
-        #print('hello world', sdr.gain
+        # print('hello world', sdr.gain
         samples = (sdr.read_samples(2*samplerate))
         signal_level = np.mean(np.abs(samples))
         print(sdr.gain, signal_level, np.min(np.abs(samples)), np.max(np.abs(samples)))
@@ -42,7 +46,7 @@ def calibrating_gain_with_windows(sdr, samplerate):
         print("activating autogain")
         gain = 'auto'
         sdr.gain = gain
-        #print('hello world', sdr.gain
+        # print('hello world', sdr.gain
         samples = (sdr.read_samples(2*samplerate))
         signal_level = np.mean(np.abs(samples))
         print(sdr.gain, signal_level, np.min(np.abs(samples)), np.max(np.abs(samples)))
@@ -56,22 +60,22 @@ def calibrating_gain_with_windows(sdr, samplerate):
 
     return gain
 
+
 def calibrating_gain_with_linux(device_number, center_frequency, samplerate):
 
     signal_level = 0.0
     gain = gain_start
 
     read_samples = (2*samplerate)
-    rtl_sdr_exe= "rtl_sdr"
+    rtl_sdr_exe = "rtl_sdr"
 
     while signal_level < signal_threshold*127.0 and gain <= gain_end:
         gain = gain+gain_step
 
         sdr = Popen([rtl_sdr_exe, "-d", str(device_number), "-f", str(center_frequency), "-s", str(samplerate),
                      "-g", str(gain), "-p", str(freq_correction), "-"],
-            stdout=PIPE, stderr=None)
+                    stdout=PIPE, stderr=None)
 
-        ret = None
         print("test")
         stream_data = sdr.stdout.read(read_samples)
         print("test1")
@@ -81,15 +85,13 @@ def calibrating_gain_with_linux(device_number, center_frequency, samplerate):
         sdr.kill()
         print(gain, signal_level/127.0, np.min(np.abs(samples)), np.max(np.abs(samples)))
 
-
     if gain >= 49.0:
         print("activating autogain")
         gain = 0
         sdr = Popen([rtl_sdr_exe, "-d", str(device_number), "-f", str(center_frequency), "-s", str(samplerate),
                      "-g", "0", "-p", str(freq_correction), "-"],
-            stdout=PIPE, stderr=None)
+                    stdout=PIPE, stderr=None)
 
-        ret = None
         stream_data = sdr.stdout.read(read_samples)
         samples = [int(x) - 127 for x in stream_data]
         signal_level = np.mean(np.abs(samples))
@@ -100,9 +102,8 @@ def calibrating_gain_with_linux(device_number, center_frequency, samplerate):
         gain = gain - gain_step
         sdr = Popen([rtl_sdr_exe, "-d", str(device_number), "-f", str(center_frequency), "-s", str(samplerate),
                      "-g", str(gain), "-p", str(freq_correction), "-"],
-            stdout=PIPE, stderr=None)
+                    stdout=PIPE, stderr=None)
 
-        ret = None
         stream_data = sdr.stdout.read(read_samples)
         samples = [int(x) - 127 for x in stream_data]
         signal_level = np.mean(np.abs(samples))
@@ -111,10 +112,12 @@ def calibrating_gain_with_linux(device_number, center_frequency, samplerate):
     print("ready")
     return gain
 
+
 def do_sha224(x):
     hashed = hashlib.sha224(x)
     hashed = hashed.hexdigest()
     return hashed
+
 
 def storing_stream(l, device_number, folder, subfolders, center_frequency, samplerate, gain, nsamples, freq_correction,
                    user_hash):
@@ -134,15 +137,16 @@ def storing_stream(l, device_number, folder, subfolders, center_frequency, sampl
     l.release()
 
     print("save")
-    filename = folder+"/"+subfolders[0]+"/tmp_"+user_hash+"_"+str(center_frequency)+"_"+str(timestamp).split(".")[0]
-    #np.savez_compressed(filename, samples) # storing by numpy and copressing it
+    filename = folder + "/" + subfolders[0] + "/tmp_" + user_hash + "_" + str(center_frequency) + "_" + str(timestamp).split(".")[0]
+    # np.savez_compressed(filename, samples) # storing by numpy and copressing it
     np.save(filename, samples)
-    os.rename(filename+".npy", folder+"/"+subfolders[0]+"/"+user_hash+"_"+str(center_frequency)+"_"+
+    os.rename(filename + ".npy", folder + "/" + subfolders[0] + "/" + user_hash + "_" + str(center_frequency) + "_" +
               str(timestamp).split(".")[0]+".npy")
 
     del samples
 
     return filename
+
 
 def storing_stream_with_linux(stream_data, device_number, folder, subfolders, center_frequency, samplerate,
                               gain, nsamples, freq_correction, user_hash):
@@ -152,11 +156,11 @@ def storing_stream_with_linux(stream_data, device_number, folder, subfolders, ce
     samples_hash = do_sha224(test)
 
     print("save")
-    filename = folder+"/"+subfolders[0]+"/tmp_"+user_hash+"_"+str(center_frequency)+"_"+str(timestamp).split(".")[0]
-    #np.savez_compressed(filename, samples) # storing by numpy and copressing it
+    filename = folder + "/" + subfolders[0] + "/tmp_" + user_hash + "_" + str(center_frequency) + "_" + str(timestamp).split(".")[0]
+    # np.savez_compressed(filename, samples) # storing by numpy and copressing it
     np.save(filename, test)
-    os.rename(filename+".npy", folder+"/"+subfolders[0]+"/"+user_hash+"_"+str(center_frequency)+"_"+
-              str(timestamp).split(".")[0]+".npy")
+    os.rename(filename + ".npy", folder + "/" + subfolders[0] + "/" + user_hash + "_" + str(center_frequency) + "_" +
+              str(timestamp).split(".")[0] + ".npy")
 
     del test
 
@@ -167,11 +171,12 @@ def get_groundstationid():
     if os.path.exists("groundstationid.npy"):
         id = str(np.load("groundstationid.npy"))
     else:
-        id = do_sha224(str(get_mac()).encode("utf-8")) # added .encode("utf-8") for python 3.4.3
+        id = do_sha224(str(get_mac()).encode("utf-8"))  # added .encode("utf-8") for python 3.4.3
         np.save("groundstationid.npy", id)
 
     print("your groundstation id is", id)
     return id
+
 
 def loading_config_file(pathname_config):
     try:
@@ -184,24 +189,22 @@ def loading_config_file(pathname_config):
 
     except requests.exceptions.RequestException as e:
         print(e)
-        if os.path.exists(pathname_config+'/record-github-config.json') == False:
+        if not os.path.exists(pathname_config + '/record-github-config.json'):
             print("creating empty record-github-config.json")
-            f = open(pathname_config+'/record-github-config.json', 'w')
+            f = open(pathname_config + '/record-github-config.json', 'w')
             json.dump({"version": 1457968166, "created": 0}, f)
             f.close()
 
     with open(pathname_config+'/record-github-config.json') as data_file:
         data_github = json.load(data_file)
 
-
-    if os.path.exists(pathname_config+'/record-config.json') == False:
+    if not os.path.exists(pathname_config+'/record-config.json'):
         create_config_file_template(pathname_config+'/record-config.json')
 
     with open(pathname_config+'/record-config.json') as data_file:
         data_infile = json.load(data_file)
 
-
-    print("created on Github:",data_github["created"],"and on local file:", data_infile["created"])
+    print("created on Github:", data_github["created"], "and on local file:", data_infile["created"])
     if data_github["created"] >= data_infile["created"]:
         print("using github config file")
         data = data_github
@@ -211,25 +214,25 @@ def loading_config_file(pathname_config):
 
     return data
 
+
 def create_config_file_template(file):
     # todo: always having the curent template in here!
 
     f = open(file, "w")
-    json.dump({
-                "comment":"prototpye status",
-                "version":1457968166,
-                "created":1457968167,
-                "device_number":0,
-                "center_frequency":104300000,
-                "samplerate":2048000,
-                "secondsofrecording":40,
-                "freq_correction":1,
-                "recording_start":{"y":2016,"m":3,"d":31,"hh":0,"mm":0,"ss":0},
-                "recording_end":{"y":2016,"m":3,"d":31,"hh":1,"mm":0,"ss":0},
-                "gain_start":1.0,
-                "gain_end":48.0,
-                "gain_step":1.0,
-                "signal_threshold":0.12
+    json.dump({"comment": "prototpye status",
+                "version": 1457968166,
+                "created": 1457968167,
+                "device_number": 0,
+                "center_frequency": 104300000,
+                "samplerate": 2048000,
+                "secondsofrecording": 40,
+                "freq_correction": 1,
+                "recording_start": {"y": 2016, "m": 3, "d": 31, "hh": 0, "mm": 0, "ss": 0},
+                "recording_end": {"y": 2016, "m": 3, "d": 31, "hh": 1, "mm": 0, "ss": 0},
+                "gain_start": 1.0,
+                "gain_end": 48.0,
+                "gain_step": 1.0,
+                "signal_threshold": 0.12
                 }, f, indent=4)
     f.close()
 
@@ -246,7 +249,6 @@ if __name__ == '__main__':
         pathname_all = pathname_all + pathname.split("/")[i] + "/"
     pathname_save = pathname_all + "dgsn-node-data"
     pathname_config = pathname_all + "dgsn-hub-ops"
-
 
     # creating the dump folder for files and the needed data folders
     #######################################
@@ -271,7 +273,6 @@ if __name__ == '__main__':
     if not os.path.exists(pathname_config):
         os.makedirs(pathname_config)
 
-
     # setting the rtlsdr before the gain finding
     #####################################
 
@@ -291,8 +292,8 @@ if __name__ == '__main__':
         secondsofrecording = data["secondsofrecording"]
     else:
         secondsofrecording = data_node["secondsofrecording_maximum"]
-    print("record seconds commanded", data["secondsofrecording"],"record seconds maximum",
-          data_node["secondsofrecording_maximum"], "and it is",secondsofrecording)
+    print("record seconds commanded", data["secondsofrecording"], "record seconds maximum",
+          data_node["secondsofrecording_maximum"], "and it is", secondsofrecording)
 
     nsamples = secondsofrecording*samplerate
     freq_correction = data["freq_correction"]
@@ -327,7 +328,7 @@ if __name__ == '__main__':
             sdr = RtlSdr(device_index=device_number)
             sdr.center_freq = center_frequency
             sdr.sample_rate = samplerate
-            #sdr.freq_correction = 1   # PPM
+            # sdr.freq_correction = 1   # PPM
 
             # calibrating the dongle
             gain = 0
@@ -372,11 +373,10 @@ if __name__ == '__main__':
             for job in jobs:
                 job.join()
 
-
     elif platform.system() == "Linux" or platform.system() == "Linux2":
         print("detecting a linux")
 
-        #getNumber_of_rtlsdrs_with_linux()
+        # getNumber_of_rtlsdrs_with_linux()
 
         gain = 0
         if gain_start >= gain_end:
@@ -392,10 +392,10 @@ if __name__ == '__main__':
 
         print("recording starts now...")
 
-        rtl_sdr_exe= "rtl_sdr"
+        rtl_sdr_exe = "rtl_sdr"
         sdr = Popen([rtl_sdr_exe, "-d", str(device_number), "-f", str(center_frequency), "-s", str(samplerate),
                      "-g", str(gain), "-p", str(freq_correction), "-"],
-            stdout=PIPE, stderr=None)
+                    stdout=PIPE, stderr=None)
 
         ret = None
         while time.mktime(time.gmtime()) <= recording_stop:
