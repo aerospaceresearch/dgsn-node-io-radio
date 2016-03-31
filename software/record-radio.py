@@ -287,14 +287,11 @@ if __name__ == '__main__':
     samplerate = data["samplerate"]
 
     # this will be necessary in case a full fledged pc is a node or in case a micro pc is used with less RAM
-    if data["secondsofrecording"] <= data_node["secondsofrecording_maximum"]:
-        secondsofrecording = data["secondsofrecording"]
-    else:
-        secondsofrecording = data_node["secondsofrecording_maximum"]
+    secondsofrecording = min(data["secondsofrecording"], data_node["secondsofrecording_maximum"])
     print("record seconds commanded", data["secondsofrecording"], "record seconds maximum",
           data_node["secondsofrecording_maximum"], "and it is", secondsofrecording)
 
-    nsamples = secondsofrecording*samplerate
+    nsamples = secondsofrecording * samplerate
     freq_correction = data["freq_correction"]
     user_hash = get_groundstationid()
 
