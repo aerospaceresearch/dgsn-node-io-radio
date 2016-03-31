@@ -5,6 +5,7 @@ import os
 import sys
 import platform
 import requests
+from os import path
 
 # import multiprocessing
 from multiprocessing import Process, Lock
@@ -156,11 +157,12 @@ def storing_stream_with_linux(stream_data, device_number, folder, subfolders, ce
     samples_hash = do_sha224(test)
 
     print("save")
-    filename = folder + "/" + subfolders[0] + "/tmp_" + user_hash + "_" + str(center_frequency) + "_" + str(timestamp).split(".")[0]
+    basename = "{hash}_{freq}_{time:0.0f}".format(hash=user_hash, freq=center_frequency, time=timestamp)
+    filename = path.join(folder, subfolders[0], "tmp_" + basename)
     # np.savez_compressed(filename, samples) # storing by numpy and copressing it
     np.save(filename, test)
-    os.rename(filename + ".npy", folder + "/" + subfolders[0] + "/" + user_hash + "_" + str(center_frequency) + "_" +
-              str(timestamp).split(".")[0] + ".npy")
+    os.rename(filename + ".npy",
+              path.join(folder, subfolders[0], basename + ".npy"))
 
     del test
 
