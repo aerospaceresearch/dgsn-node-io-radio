@@ -183,17 +183,15 @@ def loading_config_file(pathname_config):
         r = requests.get('https://raw.githubusercontent.com/aerospaceresearch/dgsn-hub-ops/master/io-radio/'
                          'record-config.json')
         print("downloading record-config.json from github")
-        f = open(pathname_config+'/record-github-config.json', 'w')
-        json.dump(r.json(), f)
-        f.close()
+        with open(pathname_config+'/record-github-config.json', 'w') as f:
+            json.dump(r.json(), f)
 
     except requests.exceptions.RequestException as e:
         print(e)
         if not os.path.exists(pathname_config + '/record-github-config.json'):
             print("creating empty record-github-config.json")
-            f = open(pathname_config + '/record-github-config.json', 'w')
-            json.dump({"version": 1457968166, "created": 0}, f)
-            f.close()
+            with open(pathname_config + '/record-github-config.json', 'w') as f:
+                json.dump({"version": 1457968166, "created": 0}, f)
 
     with open(pathname_config+'/record-github-config.json') as data_file:
         data_github = json.load(data_file)
@@ -218,23 +216,22 @@ def loading_config_file(pathname_config):
 def create_config_file_template(file):
     # todo: always having the curent template in here!
 
-    f = open(file, "w")
-    json.dump({"comment": "prototpye status",
-                "version": 1457968166,
-                "created": 1457968167,
-                "device_number": 0,
-                "center_frequency": 104300000,
-                "samplerate": 2048000,
-                "secondsofrecording": 40,
-                "freq_correction": 1,
-                "recording_start": {"y": 2016, "m": 3, "d": 31, "hh": 0, "mm": 0, "ss": 0},
-                "recording_end": {"y": 2016, "m": 3, "d": 31, "hh": 1, "mm": 0, "ss": 0},
-                "gain_start": 1.0,
-                "gain_end": 48.0,
-                "gain_step": 1.0,
-                "signal_threshold": 0.12
-                }, f, indent=4)
-    f.close()
+    with open(file, "w") as f:
+        json.dump({"comment": "prototpye status",
+                   "version": 1457968166,
+                   "created": 1457968167,
+                   "device_number": 0,
+                   "center_frequency": 104300000,
+                   "samplerate": 2048000,
+                   "secondsofrecording": 40,
+                   "freq_correction": 1,
+                   "recording_start": {"y": 2016, "m": 3, "d": 31, "hh": 0, "mm": 0, "ss": 0},
+                   "recording_end": {"y": 2016, "m": 3, "d": 31, "hh": 1, "mm": 0, "ss": 0},
+                   "gain_start": 1.0,
+                   "gain_end": 48.0,
+                   "gain_step": 1.0,
+                   "signal_threshold": 0.12
+                   }, f, indent=4)
 
 
 if __name__ == '__main__':
