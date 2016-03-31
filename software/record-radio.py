@@ -154,7 +154,7 @@ def storing_stream_with_linux(stream_data, device_number, folder, subfolders, ce
     timestamp = time.mktime(time.gmtime())
 
     test = np.fromstring(stream_data, dtype=np.uint8)
-    samples_hash = do_sha224(test)
+    # samples_hash = do_sha224(test)
 
     print("save")
     basename = "{hash}_{freq}_{time:0.0f}".format(hash=user_hash, freq=center_frequency, time=timestamp)
