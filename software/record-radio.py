@@ -128,7 +128,7 @@ def storing_stream(l, device_number, folder, subfolders, center_frequency, sampl
     sdr = RtlSdr(device_index=device_number)
     sdr.center_freq = center_frequency
     sdr.sample_rate = samplerate
-    if freq_correction != 0:
+    if freq_correction:
         sdr.freq_correction = freq_correction   # PPM
     sdr.gain = gain
     print('hello world')
@@ -237,7 +237,7 @@ def create_config_file_template(file):
                    }, f, indent=4)
 
 
-if __name__ == '__main__':
+def main():
     print("you are using", platform.system(), platform.release(), os.name)
 
     # creating the central shared dgsn-node-data for all programs on the nodes
@@ -306,8 +306,8 @@ if __name__ == '__main__':
     # getting the data for calibration
     gain_start = data["gain_start"]
     gain_end = data["gain_end"]
-    gain_step = data["gain_step"]
-    signal_threshold = data["signal_threshold"]
+    # gain_step = data["gain_step"]
+    # signal_threshold = data["signal_threshold"]
 
     ##################################
     print("starting the fun...")
@@ -393,10 +393,14 @@ if __name__ == '__main__':
                      "-g", str(gain), "-p", str(freq_correction), "-"],
                     stdout=PIPE, stderr=None)
 
-        ret = None
         while time.mktime(time.gmtime()) <= recording_stop:
             stream_data = sdr.stdout.read(nsamples*2)
             storing_stream_with_linux(stream_data, device_number, folder, subfolders, center_frequency, samplerate,
                                       gain, nsamples, freq_correction, user_hash)
 
         sdr.kill()
+
+
+if __name__ == '__main__':
+    freq_correction = None
+    main()
