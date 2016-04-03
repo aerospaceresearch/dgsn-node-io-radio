@@ -185,8 +185,10 @@ def loading_config_file(pathname_config):
         r = requests.get('https://raw.githubusercontent.com/aerospaceresearch/dgsn-hub-ops/master/io-radio/'
                          'record-config.json')
         print("downloading record-config.json from github")
+        # remove the file first,otherwise raspian has problems overwriting it, hmmmmm
+        os.remove(pathname_config + path_separator + 'record-github-config.json')
         with open(pathname_config + path_separator + 'record-github-config.json', 'w') as f:
-            json.dump(r.json(), f)
+            json.dump(r.json(), f, indent=4)
 
     except requests.exceptions.RequestException as e:
         print(e)
@@ -223,14 +225,14 @@ def create_config_file_template(file):
     with open(file, "w") as f:
         json.dump({"comment": "prototpye status",
                    "version": 1457968166,
-                   "created": 1457968167,
+                   "created": time.mktime(time.gmtime()),
                    "device_number": 0,
-                   "center_frequency": 104300000,
+                   "center_frequency": 178000000,
                    "samplerate": 2048000,
                    "secondsofrecording": 40,
                    "freq_correction": 1,
-                   "recording_start": {"year": 2016, "month": 3, "day": 31, "hour": 0, "minute": 0, "second": 0},
-                   "recording_end": {"year": 2016, "month": 3, "day": 31, "hour": 1, "minute": 0, "second": 0},
+                   "recording_start": {"year": 2016, "month": 4, "day": 3, "hour": 18, "minute": 0, "second": 0},
+                   "recording_end": {"year": 2016, "month": 4, "day": 3, "hour": 18, "minute": 10, "second": 0},
                    "calibration_start":1200,
                    "gain_start": 1.0,
                    "gain_end": 48.0,
