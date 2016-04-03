@@ -24,6 +24,8 @@ from uuid import getnode as get_mac
 
 import json
 
+path_separator = os.sep
+
 gain_step = 1.0
 gain_start = 1.0
 gain_end = 48.0
@@ -186,23 +188,25 @@ def loading_config_file(pathname_config):
         r = requests.get('https://raw.githubusercontent.com/aerospaceresearch/dgsn-hub-ops/master/io-radio/'
                          'record-config.json')
         print("downloading record-config.json from github")
-        with open(pathname_config+'/record-github-config.json', 'w') as f:
+        with open(pathname_config + path_separator + 'record-github-config.json', 'w') as f:
             json.dump(r.json(), f)
 
     except requests.exceptions.RequestException as e:
         print(e)
-        if not os.path.exists(pathname_config + '/record-github-config.json'):
+        if not os.path.exists(pathname_config + path_separator + 'record-github-config.json'):
             print("creating empty record-github-config.json")
-            with open(pathname_config + '/record-github-config.json', 'w') as f:
+            with open(pathname_config + path_separator + 'record-github-config.json', 'w') as f:
                 json.dump({"version": 1457968166, "created": 0}, f)
 
-    with open(pathname_config+'/record-github-config.json') as data_file:
+    with open(pathname_config + path_separator + 'record-github-config.json') as data_file:
         data_github = json.load(data_file)
 
-    if not os.path.exists(pathname_config+'/record-config.json'):
-        create_config_file_template(pathname_config+'/record-config.json')
+    if not os.path.exists(pathname_config + path_separator + 'record-config.json'):
+        print("creating local config file")
+        create_config_file_template(pathname_config + path_separator + 'record-config.json')
 
-    with open(pathname_config+'/record-config.json') as data_file:
+    with open(pathname_config + path_separator + 'record-config.json') as data_file:
+        print(pathname_config + path_separator + 'record-config.json')
         data_infile = json.load(data_file)
 
     print("created on Github:", data_github["created"], "and on local file:", data_infile["created"])
@@ -243,10 +247,10 @@ def main():
 
     # creating the central shared dgsn-node-data for all programs on the nodes
     #######################################
-    pathname = os.path.dirname(sys.argv[0])
+    pathname = os.path.abspath(os.path.dirname(sys.argv[0]))
     pathname_all = ""
-    for i in range(len(pathname.split("/"))-1):
-        pathname_all = pathname_all + pathname.split("/")[i] + "/"
+    for i in range(len(pathname.split(path_separator))-2): # creating the folders two folder levels above
+        pathname_all = pathname_all + pathname.split(path_separator)[i] + path_separator
     pathname_save = pathname_all + "dgsn-node-data"
     pathname_config = pathname_all + "dgsn-hub-ops"
 
@@ -255,20 +259,20 @@ def main():
     if not os.path.exists(pathname_save):
         os.makedirs(pathname_save)
 
-    folder = pathname_save+"/rec"
+    folder = pathname_save + path_separator + "rec"
     subfolders = ["iq", "sdr", "gapped", "coded"]
     if not os.path.exists(folder):
         os.makedirs(folder)
 
     if os.path.exists(folder):
         for i in range(len(subfolders)):
-            if not os.path.exists(folder+"/"+subfolders[i]):
-                os.makedirs(folder+"/"+subfolders[i])
+            if not os.path.exists(folder + path_separator + subfolders[i]):
+                os.makedirs(folder + path_separator + subfolders[i])
 
     if not os.path.exists(pathname_config):
         os.makedirs(pathname_config)
 
-    pathname_config = pathname_config + "/io-radio"
+    pathname_config = pathname_config + path_separator + "io-radio"
 
     if not os.path.exists(pathname_config):
         os.makedirs(pathname_config)
@@ -280,7 +284,7 @@ def main():
     data = loading_config_file(pathname_config)
 
     # getting the specific settings for the node itself. perhaps it cannot be as fast as others
-    with open(pathname+'/node-config.json') as data_file:
+    with open(pathname + path_separator +'node-config.json') as data_file:
         data_node = json.load(data_file)
 
     device_number = data["device_number"]
@@ -326,7 +330,7 @@ def main():
             gain = 0
             calibration_finished = 0 # 1 means calibration is done
 
-            while time.mktime(time.gmtime()) <= recording_start:
+            while time.mktime(time.gmtime()) <= recording_start or calibration_finished == 0:
                 # waiting for the time to be right :)
                 time.sleep(10)
                 print("still", recording_start - time.mktime(time.gmtime()), "to wait")
@@ -382,7 +386,7 @@ def main():
         gain = 0
         calibration_finished = 0
 
-        while time.mktime(time.gmtime()) <= recording_start:
+        while time.mktime(time.gmtime()) <= recording_start or calibration_finished == 0:
             # waiting for the time to be right :)
             time.sleep(10)
             print("still", recording_start - time.mktime(time.gmtime()), "to wait")
