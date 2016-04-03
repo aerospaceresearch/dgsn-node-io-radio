@@ -228,8 +228,9 @@ def create_config_file_template(file):
                    "samplerate": 2048000,
                    "secondsofrecording": 40,
                    "freq_correction": 1,
-                   "recording_start": {"y": 2016, "m": 3, "d": 31, "hh": 0, "mm": 0, "ss": 0},
-                   "recording_end": {"y": 2016, "m": 3, "d": 31, "hh": 1, "mm": 0, "ss": 0},
+                   "recording_start": {"year": 2016, "month": 3, "day": 31, "hour": 0, "minute": 0, "second": 0},
+                   "recording_end": {"year": 2016, "month": 3, "day": 31, "hour": 1, "minute": 0, "second": 0},
+                   "calibration_start":1200,
                    "gain_start": 1.0,
                    "gain_end": 48.0,
                    "gain_step": 1.0,
@@ -295,15 +296,16 @@ def main():
     freq_correction = data["freq_correction"]
     user_hash = get_groundstationid()
 
-    dt = datetime.datetime(data["recording_start"]["y"], data["recording_start"]["m"], data["recording_start"]["d"],
-                           data["recording_start"]["hh"], data["recording_start"]["mm"], data["recording_start"]["ss"])
+    dt = datetime.datetime(data["recording_start"]["year"], data["recording_start"]["month"], data["recording_start"]["day"],
+                           data["recording_start"]["hour"], data["recording_start"]["minute"], data["recording_start"]["second"])
     recording_start = time.mktime(dt.timetuple())
 
-    dt = datetime.datetime(data["recording_end"]["y"], data["recording_end"]["m"], data["recording_end"]["d"],
-                           data["recording_end"]["hh"], data["recording_end"]["mm"], data["recording_end"]["ss"])
+    dt = datetime.datetime(data["recording_end"]["year"], data["recording_end"]["month"], data["recording_end"]["day"],
+                           data["recording_end"]["hour"], data["recording_end"]["minute"], data["recording_end"]["second"])
     recording_stop = time.mktime(dt.timetuple())
 
     # getting the data for calibration
+    calibration_start = data["calibration_start"]
     gain_start = data["gain_start"]
     gain_end = data["gain_end"]
     # gain_step = data["gain_step"]
@@ -321,31 +323,34 @@ def main():
         if device_count > 0:
             lock = Lock()
             jobs = []
-            sdr = RtlSdr(device_index=device_number)
-            sdr.center_freq = center_frequency
-            sdr.sample_rate = samplerate
-            # sdr.freq_correction = 1   # PPM
-
-            # calibrating the dongle
             gain = 0
-            if gain_start >= gain_end:
-                gain = gain_end
-            else:
-                gain = calibrating_gain_with_windows(sdr, samplerate)
-
-            print("used gain", gain)
-            sdr.gain = gain
-            sdr.close()
+            calibration_finished = 0 # 1 means calibration is done
 
             while time.mktime(time.gmtime()) <= recording_start:
                 # waiting for the time to be right :)
                 time.sleep(10)
                 print("still", recording_start - time.mktime(time.gmtime()), "to wait")
 
-            print("recording starts now...")
+                if time.mktime(time.gmtime()) > recording_start - calibration_start and calibration_finished == 0:
+                    sdr = RtlSdr(device_index=device_number)
+                    sdr.center_freq = center_frequency
+                    sdr.sample_rate = samplerate
+                    # sdr.freq_correction = 1   # PPM
+
+                    # calibrating the dongle
+                    if gain_start >= gain_end:
+                        gain = gain_end
+                    else:
+                        gain = calibrating_gain_with_windows(sdr, samplerate)
+
+                    print("used gain", gain)
+                    sdr.gain = gain
+                    sdr.close()
+                    calibration_finished = 1
 
             utctime = time.mktime(time.gmtime())
             if utctime >= recording_start and utctime <= recording_stop:
+                print("recording starts now...")
                 for recs in range(2):
                     p = Process(target=storing_stream, args=(lock, device_number, folder, subfolders, center_frequency,
                                                              samplerate, gain, nsamples, freq_correction, user_hash))
@@ -375,31 +380,37 @@ def main():
         # getNumber_of_rtlsdrs_with_linux()
 
         gain = 0
-        if gain_start >= gain_end:
-            gain = gain_end
-        else:
-            gain = calibrating_gain_with_linux(device_number, center_frequency, samplerate)
-        print("used gain", gain)
+        calibration_finished = 0
 
         while time.mktime(time.gmtime()) <= recording_start:
             # waiting for the time to be right :)
             time.sleep(10)
             print("still", recording_start - time.mktime(time.gmtime()), "to wait")
 
-        print("recording starts now...")
+            if time.mktime(time.gmtime()) > recording_start - calibration_start and calibration_finished == 0:
+                if gain_start >= gain_end:
+                    gain = gain_end
+                else:
+                    gain = calibrating_gain_with_linux(device_number, center_frequency, samplerate)
+                    print("used gain", gain)
+                calibration_finished = 1
 
-        rtl_sdr_exe = "rtl_sdr"
-        sdr = Popen([rtl_sdr_exe, "-d", str(device_number), "-f", str(center_frequency), "-s", str(samplerate),
-                     "-g", str(gain), "-p", str(freq_correction), "-"],
-                    stdout=PIPE, stderr=None)
+        utctime = time.mktime(time.gmtime())
+        if utctime >= recording_start and utctime <= recording_stop:
+            print("recording starts now...")
 
-        while time.mktime(time.gmtime()) <= recording_stop:
-            stream_data = sdr.stdout.read(nsamples*2)
-            storing_stream_with_linux(stream_data, device_number, folder, subfolders, center_frequency, samplerate,
-                                      gain, nsamples, freq_correction, user_hash)
+            rtl_sdr_exe = "rtl_sdr"
+            sdr = Popen([rtl_sdr_exe, "-d", str(device_number), "-f", str(center_frequency), "-s", str(samplerate),
+                         "-g", str(gain), "-p", str(freq_correction), "-"],
+                        stdout=PIPE, stderr=None)
 
-        sdr.kill()
+            while time.mktime(time.gmtime()) <= recording_stop:
+                stream_data = sdr.stdout.read(nsamples*2)
+                storing_stream_with_linux(stream_data, device_number, folder, subfolders, center_frequency, samplerate,
+                                          gain, nsamples, freq_correction, user_hash)
 
+            sdr.kill()
+    print("it's done. thank you, please come back again!")
 
 if __name__ == '__main__':
     freq_correction = None
