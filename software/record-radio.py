@@ -181,23 +181,27 @@ def get_groundstationid():
 
 
 def loading_config_file(pathname_config):
+
+    filepath_github_conf = pathname_config + path_separator + 'record-github-config.json'
     try:
         r = requests.get('https://raw.githubusercontent.com/aerospaceresearch/dgsn-hub-ops/master/io-radio/'
                          'record-config.json')
+
         print("downloading record-config.json from github")
         # remove the file first,otherwise raspian has problems overwriting it, hmmmmm
-        os.remove(pathname_config + path_separator + 'record-github-config.json')
-        with open(pathname_config + path_separator + 'record-github-config.json', 'w') as f:
+        if os.path.exists(filepath_github_conf):
+            os.remove(filepath_github_conf)
+        with open(filepath_github_conf, 'w') as f:
             json.dump(r.json(), f, indent=4)
 
     except requests.exceptions.RequestException as e:
         print(e)
-        if not os.path.exists(pathname_config + path_separator + 'record-github-config.json'):
+        if not os.path.exists(filepath_github_conf):
             print("creating empty record-github-config.json")
-            with open(pathname_config + path_separator + 'record-github-config.json', 'w') as f:
+            with open(filepath_github_conf, 'w') as f:
                 json.dump({"version": 1457968166, "created": 0}, f)
 
-    with open(pathname_config + path_separator + 'record-github-config.json') as data_file:
+    with open(filepath_github_conf) as data_file:
         data_github = json.load(data_file)
 
     if not os.path.exists(pathname_config + path_separator + 'record-config.json'):
@@ -356,8 +360,9 @@ def main():
             if utctime >= recording_start and utctime <= recording_stop:
                 print("recording starts now...")
                 for recs in range(2):
-                    p = Process(target=storing_stream_with_windows, args=(lock, device_number, folder, subfolders, center_frequency,
-                                                             samplerate, gain, nsamples, freq_correction, user_hash))
+                    p = Process(target=storing_stream_with_windows, args=(lock, device_number, folder, subfolders,
+                                                                          center_frequency, samplerate, gain, nsamples,
+                                                                          freq_correction, user_hash))
                     jobs.append(p)
                     p.start()
                 print("end")
@@ -368,9 +373,10 @@ def main():
                         if not p.is_alive() and time.mktime(time.gmtime()) <= recording_stop:
                             jobs.pop(n)
                             recs += 1
-                            p = Process(target=storing_stream_with_windows(), args=(lock, device_number, folder, subfolders,
-                                                                     center_frequency, samplerate, gain, nsamples,
-                                                                     freq_correction, user_hash))
+                            p = Process(target=storing_stream_with_windows, args=(lock, device_number, folder,
+                                                                                  subfolders, center_frequency,
+                                                                                  samplerate, gain, nsamples,
+                                                                                  freq_correction, user_hash))
                             jobs.append(p)
                             p.start()
                             print("rec number", recs, 'added')
