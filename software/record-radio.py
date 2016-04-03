@@ -79,14 +79,11 @@ def calibrating_gain_with_linux(device_number, center_frequency, samplerate):
                      "-g", str(gain), "-p", str(freq_correction), "-"],
                     stdout=PIPE, stderr=None)
 
-        print("test")
         stream_data = sdr.stdout.read(read_samples)
-        print("test1")
         samples = [int(x) - 127 for x in stream_data]
-        print("test2")
         signal_level = np.mean(np.abs(samples))
         sdr.kill()
-        print(gain, signal_level/127.0, np.min(np.abs(samples)), np.max(np.abs(samples)))
+        print("gain", gain, "signal level", signal_level/127.0, "min", np.min(np.abs(samples)), "max", np.max(np.abs(samples)))
 
     if gain >= 49.0:
         print("activating autogain")
@@ -122,7 +119,7 @@ def do_sha224(x):
     return hashed
 
 
-def storing_stream(l, device_number, folder, subfolders, center_frequency, samplerate, gain, nsamples, freq_correction,
+def storing_stream_with_windows(l, device_number, folder, subfolders, center_frequency, samplerate, gain, nsamples, freq_correction,
                    user_hash):
     l.acquire()
     print(device_number, center_frequency, samplerate, gain, nsamples, freq_correction)
@@ -156,18 +153,18 @@ def storing_stream_with_linux(stream_data, device_number, folder, subfolders, ce
                               gain, nsamples, freq_correction, user_hash):
     timestamp = time.mktime(time.gmtime())
 
-    test = np.fromstring(stream_data, dtype=np.uint8)
-    # samples_hash = do_sha224(test)
+    samples = np.fromstring(stream_data, dtype=np.uint8)
+    # samples_hash = do_sha224(samples)
 
     print("save")
     basename = "{hash}_{freq}_{time:0.0f}".format(hash=user_hash, freq=center_frequency, time=timestamp)
     filename = path.join(folder, subfolders[0], "tmp_" + basename)
     # np.savez_compressed(filename, samples) # storing by numpy and copressing it
-    np.save(filename, test)
+    np.save(filename, samples)
     os.rename(filename + ".npy",
               path.join(folder, subfolders[0], basename + ".npy"))
 
-    del test
+    del samples
 
     return filename
 
@@ -333,7 +330,8 @@ def main():
             while time.mktime(time.gmtime()) <= recording_start or calibration_finished == 0:
                 # waiting for the time to be right :)
                 time.sleep(10)
-                print("still", recording_start - time.mktime(time.gmtime()), "to wait")
+                print("still to wait", recording_start - time.mktime(time.gmtime()), "to record and",
+                  recording_start - time.mktime(time.gmtime())- calibration_start, "to calibration")
 
                 if time.mktime(time.gmtime()) > recording_start - calibration_start and calibration_finished == 0:
                     sdr = RtlSdr(device_index=device_number)
@@ -356,7 +354,7 @@ def main():
             if utctime >= recording_start and utctime <= recording_stop:
                 print("recording starts now...")
                 for recs in range(2):
-                    p = Process(target=storing_stream, args=(lock, device_number, folder, subfolders, center_frequency,
+                    p = Process(target=storing_stream_with_windows, args=(lock, device_number, folder, subfolders, center_frequency,
                                                              samplerate, gain, nsamples, freq_correction, user_hash))
                     jobs.append(p)
                     p.start()
@@ -368,7 +366,7 @@ def main():
                         if not p.is_alive() and time.mktime(time.gmtime()) <= recording_stop:
                             jobs.pop(n)
                             recs += 1
-                            p = Process(target=storing_stream, args=(lock, device_number, folder, subfolders,
+                            p = Process(target=storing_stream_with_windows(), args=(lock, device_number, folder, subfolders,
                                                                      center_frequency, samplerate, gain, nsamples,
                                                                      freq_correction, user_hash))
                             jobs.append(p)
@@ -389,7 +387,8 @@ def main():
         while time.mktime(time.gmtime()) <= recording_start or calibration_finished == 0:
             # waiting for the time to be right :)
             time.sleep(10)
-            print("still", recording_start - time.mktime(time.gmtime()), "to wait")
+            print("still to wait", recording_start - time.mktime(time.gmtime()), "to record and",
+                  recording_start - time.mktime(time.gmtime())- calibration_start, "to calibration")
 
             if time.mktime(time.gmtime()) > recording_start - calibration_start and calibration_finished == 0:
                 if gain_start >= gain_end:
