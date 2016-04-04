@@ -1,0 +1,7 @@
+# add this at a good location in /etc/rc.local
+# sudo nano /etc/rc.local
+
+sleep 25
+sudo python3 /home/pi/dgsn/dgsn-node-io-radio-master/software/record-radio.py
+
+# before exit
