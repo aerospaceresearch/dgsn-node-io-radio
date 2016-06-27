@@ -26,13 +26,13 @@ import json
 
 path_separator = os.sep
 
-gain_step = 1.0
-gain_start = 1.0
+'''gain_step = 1.0
+gain_start = 46.0
 gain_end = 48.0
-signal_threshold = 0.10
+signal_threshold = 0.10'''
 
 
-def calibrating_gain_with_windows(sdr, samplerate):
+def calibrating_gain_with_windows(sdr, samplerate, gain_step, gain_start, gain_end, signal_threshold):
 
     signal_level = 0.0
     gain = gain_start
@@ -64,7 +64,7 @@ def calibrating_gain_with_windows(sdr, samplerate):
     return gain
 
 
-def calibrating_gain_with_linux(device_number, center_frequency, samplerate):
+def calibrating_gain_with_linux(device_number, center_frequency, samplerate, gain_step, gain_start, gain_end, signal_threshold):
 
     signal_level = 0.0
     gain = gain_start
@@ -239,7 +239,7 @@ def create_config_file_template(file):
                    "recording_end": {"year": 2016, "month": 4, "day": 3, "hour": 18, "minute": 10, "second": 0},
                    "calibration_start":1200,
                    "gain_start": 1.0,
-                   "gain_end": 48.0,
+                   "gain_end": 47.0,
                    "gain_step": 1.0,
                    "signal_threshold": 0.12
                    }, f, indent=4)
@@ -263,7 +263,7 @@ def main():
         os.makedirs(pathname_save)
 
     folder = pathname_save + path_separator + "rec"
-    subfolders = ["iq", "sdr", "gapped", "coded"]
+    subfolders = ["iq", "sdr", "gapped", "coded", "monitor"]
     if not os.path.exists(folder):
         os.makedirs(folder)
 
@@ -315,8 +315,9 @@ def main():
     calibration_start = data["calibration_start"]
     gain_start = data["gain_start"]
     gain_end = data["gain_end"]
-    # gain_step = data["gain_step"]
-    # signal_threshold = data["signal_threshold"]
+    gain_step = data["gain_step"]
+    signal_threshold = data["signal_threshold"]
+    print("gg", gain_start, gain_end)
 
     ##################################
     print("starting the fun...")
@@ -346,13 +347,22 @@ def main():
                     # sdr.freq_correction = 1   # PPM
 
                     # calibrating the dongle
-                    if gain_start >= gain_end:
-                        gain = gain_end
+                    if gain_start >= gain_end or gain_start >= 49.0:
+                        print("fixed gain")
+                        if gain_start==0 or gain_start > 49.0:
+                            print("autogain")
+                            gain = 'auto'
+                        else:
+                            gain = gain_start
+
                     else:
-                        gain = calibrating_gain_with_windows(sdr, samplerate)
+                        print("calibrated gain")
+                        gain = calibrating_gain_with_windows(sdr, samplerate, gain_step, gain_start,
+                                                             gain_end, signal_threshold)
 
                     print("used gain", gain)
                     sdr.gain = gain
+
                     sdr.close()
                     calibration_finished = 1
 
@@ -399,11 +409,19 @@ def main():
                   recording_start - time.mktime(time.gmtime())- calibration_start, "to calibration")
 
             if time.mktime(time.gmtime()) > recording_start - calibration_start and calibration_finished == 0:
-                if gain_start >= gain_end:
-                    gain = gain_end
+                if gain_start >= gain_end or gain_start >= 49.0:
+                    print("fixed gain")
+                    if gain_start==0 or gain_start > 49.0:
+                        print("autogain")
+                        gain = 0
+                    else:
+                        gain = gain_start
+
                 else:
-                    gain = calibrating_gain_with_linux(device_number, center_frequency, samplerate)
-                    print("used gain", gain)
+                    print("calibrated gain")
+                    gain = calibrating_gain_with_linux(device_number, center_frequency, samplerate, gain_step,
+                                                       gain_start, gain_end, signal_threshold)
+                print("used gain", gain)
                 calibration_finished = 1
 
         utctime = time.mktime(time.gmtime())
