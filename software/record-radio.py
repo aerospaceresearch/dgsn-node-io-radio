@@ -140,11 +140,21 @@ def storing_stream_with_windows(l, device_number, folder, subfolders, center_fre
     basename = "{hash}_{freq}_{time:0.0f}".format(hash=user_hash, freq=center_frequency, time=timestamp)
     filename = path.join(folder, subfolders[0], "tmp_" + basename)
     # np.savez_compressed(filename, samples) # storing by numpy and copressing it
-    np.save(filename, samples)
+    '''np.save(filename, samples)
     os.rename(filename + ".npy",
-              path.join(folder, subfolders[0], basename + ".npy"))
+              path.join(folder, subfolders[0], basename + ".npy"))'''
+
+    f = open(filename, 'wb')
+    f.write(samples)
+    f.close()
+    os.rename(filename,
+              path.join(folder, subfolders[0], basename + ".dat"))
 
     del samples
+
+    filename = path.join(folder, subfolders[1], basename + ".npy")
+    sdrmeta(filename, device_number, folder, subfolders, center_frequency,
+            samplerate, gain, nsamples, freq_correction, user_hash)
 
     return filename
 
@@ -153,18 +163,27 @@ def storing_stream_with_linux(stream_data, device_number, folder, subfolders, ce
                               gain, nsamples, freq_correction, user_hash):
     timestamp = time.mktime(time.gmtime())
 
-    samples = np.fromstring(stream_data, dtype=np.uint8)
+    # samples = np.fromstring(stream_data, dtype=np.uint8)
     # samples_hash = do_sha224(samples)
 
     print("save")
     basename = "{hash}_{freq}_{time:0.0f}".format(hash=user_hash, freq=center_frequency, time=timestamp)
     filename = path.join(folder, subfolders[0], "tmp_" + basename)
     # np.savez_compressed(filename, samples) # storing by numpy and copressing it
-    np.save(filename, samples)
+    '''np.save(filename, samples)
     os.rename(filename + ".npy",
-              path.join(folder, subfolders[0], basename + ".npy"))
+              path.join(folder, subfolders[0], basename + ".npy"))'''
+
+    f = open(filename, 'wb')
+    f.write(stream_data)
+    f.close()
+    os.rename(filename,
+              path.join(folder, subfolders[0], basename + ".dat"))
 
     del samples
+
+    sdrmeta(path.join(folder, subfolders[1], basename + ".npy"), device_number, folder, subfolders, center_frequency,
+            samplerate, gain, nsamples, freq_correction, user_hash)
 
     return filename
 
@@ -243,6 +262,10 @@ def create_config_file_template(file):
                    "gain_step": 1.0,
                    "signal_threshold": 0.12
                    }, f, indent=4)
+
+def sdrmeta(file, device_number, folder, subfolders, center_frequency, samplerate, gain, nsamples, freq_correction,
+                   user_hash):
+    np.save(file, samplerate)
 
 
 def main():
