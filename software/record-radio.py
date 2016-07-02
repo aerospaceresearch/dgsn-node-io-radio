@@ -263,9 +263,10 @@ def create_config_file_template(file):
                    "signal_threshold": 0.12
                    }, f, indent=4)
 
-def sdrmeta(file, device_number, folder, subfolders, center_frequency, samplerate, gain, nsamples, freq_correction,
-                   user_hash):
-    np.save(file, samplerate)
+def sdrmeta(file, device_number, folder, subfolders, center_frequency,
+            samplerate, gain, nsamples, freq_correction, user_hash):
+    exandhop = [device_number, center_frequency, samplerate, gain, nsamples, freq_correction, user_hash]
+    np.save(file, exandhop)
 
 
 def main():
